@@ -12,7 +12,7 @@ You can specify some parameters for the generated files:
 * the generated file type (jpg or png).
 * the root folder where to store all density related folders (if no path is specified, resources will be saved in the same folder as your original resource).
 
-![alt settingsBox](https://raw.github.com//djavan-bertrand/export-to-android/master/settingsBox.png)
+![alt settingsBox](https://raw.githubusercontent.com/djavan-bertrand/export-to-android/master/settingsBox.png)
 
 This script is based on [this repo](https://github.com/UncorkedStudios/export-to-android).
 
