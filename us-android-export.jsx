@@ -10,162 +10,303 @@
 
 
 // Photoshop variables
-var docRef = app.activeDocument,
-	activeLayer = docRef.activeLayer,
+var docRef,
+	activeLayer,
 	activeLayer2,
-	newWidth, 
-	newHeight,
-	docName = docRef.name;
+	mdpiWidth, 
+	mdpiHeight,
+	folderPath,
+	fileName,
+	isPng;
 
+/****************************************/
+/*		Functions implementation		*/
+/****************************************/
+
+	/**
+	* Create a settings dialog window and return it
+	* In this dialog window there will be inputs for :
+	* file name, size, file type, folder path
+	*/
+	function createSettings() {
+		var dialog = new Window ("dialog", "Settings");
+		
+		// filename
+		var fileNameGroup = dialog.add ("group");
+		fileNameGroup.orientation = "row";
+		fileNameGroup.alignment = "center";
+		var fileNameLabel = fileNameGroup.add("statictext", undefined, "File name");
+		var fileNameInput = fileNameGroup.add("edittext", [15,30,305,50], fileName);
+		
+		// file size
+		var fileSizeGroup = dialog.add("panel",undefined,'Size of the mdpi (px)');
+		
+		var fileSizeRelatedCheckbox = fileSizeGroup.add("checkbox", undefined, "Same width and height");
+		
+		var fileSizeWidthGroup = fileSizeGroup.add ("group");
+		fileSizeWidthGroup.orientation = "row";
+		fileSizeWidthGroup.alignment = "center";
+		var fileSizeWidthLabel = fileSizeWidthGroup.add("statictext", undefined, "Width");
+		var fileSizeWidthInput = fileSizeWidthGroup.add("edittext", [15,30,60,50], mdpiWidth);
+		
+		var fileSizeHeightGroup = fileSizeGroup.add ("group");
+		fileSizeHeightGroup.orientation = "row";
+		fileSizeHeightGroup.alignment = "center";
+		var fileSizeHeightLabel = fileSizeHeightGroup.add("statictext", undefined, "Height");
+		var fileSizeHeightInput = fileSizeHeightGroup.add("edittext", [15,30,60,50], mdpiHeight);
+		
+		// file type
+		var fileTypeGroup = dialog.add("panel",undefined,'File type');
+		fileTypeGroup.orientation="row";
+		var pngType=fileTypeGroup.add("radiobutton", undefined, "png");
+		pngType.value = isPng;
+		var jpgType=fileTypeGroup.add("radiobutton", undefined, "jpg");
+		jpgType.value = !isPng;
+		
+		// custom folder path
+		var customFolderPathBt = dialog.add ("button", undefined, "Use custom folder path");
+		
+		// buttons
+		var btnGroup = dialog.add ("group");
+		btnGroup.orientation = "row";
+		btnGroup.alignment = "center";
+		var okButton = btnGroup.add ("button", undefined, "OK");
+		var cancelButton = btnGroup.add ("button", undefined, "Cancel");
+		
+		
+		// user interaction functions
+		fileNameInput.onChange = function() {
+			fileName = fileNameInput.text;
+		}
+		
+		fileSizeRelatedCheckbox.onClick = function () {
+			if (fileSizeRelatedCheckbox.value === true) {
+				fileSizeHeightInput.text = fileSizeWidthInput.text;
+				mdpiHeight = mdpiWidth;
+			}
+		}
+		
+		fileSizeHeightInput.onChanging = function() {
+			if (isNaN(fileSizeHeightInput.text)) {
+				fileSizeHeightInput.text = mdpiHeight;
+			} else {
+				mdpiHeight = fileSizeHeightInput.text;
+				// if the size are the same, also change the width
+				if (fileSizeRelatedCheckbox.value === true) {
+					// don't set again the height value, which will set the width, which will set the height...
+					fileSizeRelatedCheckbox.value = false;
+					fileSizeWidthInput.text = mdpiHeight;
+					mdpiWidth = mdpiHeight;
+					fileSizeRelatedCheckbox.value = true;
+				}
+			}
+		}
+		
+		fileSizeWidthInput.onChanging = function() {
+			if (isNaN(fileSizeWidthInput.text)) {
+				fileSizeWidthInput.text = mdpiWidth;
+			} else {
+				mdpiWidth = fileSizeWidthInput.text;
+				// if the size are the same, also change the width
+				if (fileSizeRelatedCheckbox.value === true) {
+					// don't set again the width value, which will set the height, which will set the width...
+					fileSizeRelatedCheckbox.value = false;
+					fileSizeHeightInput.text = mdpiWidth;
+					mdpiHeight = mdpiWidth;
+					fileSizeRelatedCheckbox.value = true;
+				}
+			}
+		}
+		
+		pngType.onClick = function() {
+			isPng = pngType.value;
+		}
+		
+		jpgType.onClick = function() {
+			isPng = !jpgType.value;
+		}
+		
+		customFolderPathBt.onClick = function () {
+			var folderPathTmp = Folder.selectDialog("Select folder where you want to put the drawable-mdpi folder and others");
+			if (folderPathTmp != null) {
+				folderPath = folderPathTmp;
+			}
+		}
+		
+		okButton.onClick = function() {
+			saveAllResources();
+		}
+		
+		dialog.center();
+		return dialog;
+	}
+
+	/**
+	* Save the current document into the resource folders
+	*/
+	function saveAllResources() {
+		// save current ruler unit settings, so we can restore it
+		var ru = app.preferences.rulerUnits;
+		
+		// set ruler units to pixel to ensure scaling works as expected
+		app.preferences.rulerUnits = Units.PIXELS;
+		
+		// if the document is save, save the resource
+		if(!isDocumentUnsaved()) {
+			saveFile(folderPath+'/drawable-xxxhdpi', mdpiWidth * 4, mdpiHeight * 4);
+			saveFile(folderPath+'/drawable-xxhdpi', mdpiWidth * 3, mdpiHeight * 3);
+			saveFile(folderPath+'/drawable-xhdpi', mdpiWidth * 2, mdpiHeight * 2);
+			saveFile(folderPath+'/drawable-hdpi', mdpiWidth * 1.5, mdpiHeight * 1.5);
+			saveFile(folderPath+'/drawable-mdpi', mdpiWidth, mdpiHeight);
+			
+			// confirm to the user that operation went well and remind him the paths
+			if (isPng) {
+				extension = ".png";
+			} else {
+				extension = ".jpg";
+			}
+			alert("Your files have been save in " + folderPath + " with name " + fileName + extension);
+		}
+
+		// restore old ruler unit settings
+		app.preferences.rulerUnits = ru;	
+	}
+
+	/**
+	* Save the doc into folderPath with the given width and heigth
+	*/
+	function saveFile(folderPath, width, height) {
+		dupToNewFile();
+		var docRef2 = app.activeDocument;
+		resizeDoc(docRef2, width, height);
+
+		fileName = fileName.replace(/\.[^\.]+$/, '');
+		var folder = Folder(folderPath);
+		var extension,
+			sfwOptions;
+		if (isPng) {
+			extension = ".png";
+			
+			sfwOptions = new ExportOptionsSaveForWeb(); 
+			sfwOptions.format = SaveDocumentType.PNG; 
+			sfwOptions.includeProfile = false; 
+			sfwOptions.interlaced = 0; 
+			sfwOptions.optimized = true; 
+			sfwOptions.quality = 100;
+			sfwOptions.PNG8 = false;
+		} else {
+			extension = ".jpg";
+			
+			sfwOptions = new ExportOptionsSaveForWeb(); 
+			sfwOptions.format = SaveDocumentType.JPEG; 
+			sfwOptions.quality = 100; 
+			sfwOptions.includeProfile = true; 
+			sfwOptions.optimised = true; 
+		}
+			
+		if(!folder.exists) {
+			folder.create();
+		}
+
+		var saveFile = File(folder + "/" + fileName + extension);
+
+		// Export the layer as a PNG
+		activeDocument.exportDocument(saveFile, ExportType.SAVEFORWEB, sfwOptions);
+
+		// Close the document without saving
+		activeDocument.close(SaveOptions.DONOTSAVECHANGES);
+	}
+
+	/**
+	* Test if the document is unsaved
+	* http://2.adobe-photoshop-scripting.overzone.net/determine-if-file-has-never-been-saved-in-javascript-t264.html
+	*/
+	function isDocumentUnsaved(doc){
+		// assumes doc is the activeDocument
+		cTID = function(s) { return app.charIDToTypeID(s); }
+		var ref = new ActionReference();
+		ref.putEnumerated( cTID("Dcmn"),
+		cTID("Ordn"),
+		cTID("Trgt") ); //activeDoc
+		var desc = executeActionGet(ref);
+		var rc = true;
+			if (desc.hasKey(cTID("FilR"))) { //FileReference
+			var path = desc.getPath(cTID("FilR"));
+			
+			if (path) {
+				rc = (path.absoluteURI.length == 0);
+			}
+		}
+		return rc;
+	};
+
+	/**
+	* Resize the given document with width and height
+	*/
+	function resizeDoc(document, width, height) {
+
+		document.resizeImage(UnitValue(width,"px"),UnitValue(height,"px"),null,ResampleMethod.BICUBIC);
+
+		// Merge all layers inside the temp document
+		activeLayer2.merge();
+	}
+
+	/**
+	* create a new document to work with
+	*/
+	function dupToNewFile() {	
+		var fileName = activeLayer.name.replace(/\.[^\.]+$/, ''), 
+			calcWidth  = Math.ceil(activeLayer.bounds[2] - activeLayer.bounds[0]),
+			calcHeight = Math.ceil(activeLayer.bounds[3] - activeLayer.bounds[1]),
+			docResolution = docRef.resolution,
+			document = app.documents.add(calcWidth, calcHeight, docResolution, fileName, NewDocumentMode.RGB,
+			DocumentFill.TRANSPARENT);
+
+		app.activeDocument = docRef;
+
+		// Duplicated selection to a temp document
+		activeLayer.duplicate(document, ElementPlacement.INSIDE);
+
+		// Set focus on temp document
+		app.activeDocument = document;
+
+		// Assign a variable to the layer we pasted inside the temp document
+		activeLayer2 = document.activeLayer;
+
+		// Center the layer
+		activeLayer2.translate(-activeLayer2.bounds[0],-activeLayer2.bounds[1]);
+	}
+	
+	/**
+	* Entry function
+	* Init vars and display the settings dialog
+	*/
+	function main() {
+		// save current ruler unit settings, so we can restore it
+		var ru = app.preferences.rulerUnits;
+		
+		// set ruler units to pixel to ensure scaling works as expected
+		app.preferences.rulerUnits = Units.PIXELS;
+		
+		// init vars
+		docRef = app.activeDocument;
+		activeLayer = docRef.activeLayer;
+		mdpiWidth = docRef.width.value;
+		mdpiHeight = docRef.width.value;
+		folderPath = docRef.path;
+		fileName = docRef.name.replace(/\.[^\.]+$/, '');
+		isPng = true;
+		
+		var settings = createSettings();
+		settings.show();
+		
+		// restore old ruler unit settings
+		app.preferences.rulerUnits = ru;
+	}
+
+/****************************************/
+/*			Functions call				*/
+/****************************************/	
 
 // Run main function
-init();
-
-// The other functions
-function init() {
-    
-    // save current ruler unit settings, so we can restore it
-    var ru = app.preferences.rulerUnits;
-    
-    // set ruler units to pixel to ensure scaling works as expected
-    app.preferences.rulerUnits = Units.PIXELS;    
-    
-	if(!isDocumentNew()) {
-		saveFunc('xxhdpi');
-		saveFunc('xhdpi');
-		saveFunc('hdpi');
-		saveFunc('mdpi');
-		saveFunc('ldpi');
-	} else {
-		alert("Please save your document before running this script.");
-	}
-
-    // restore old ruler unit settings
-    app.preferences.rulerUnits = ru;
-}
-
-// Test if the document is new (unsaved)
-// http://2.adobe-photoshop-scripting.overzone.net/determine-if-file-has-never-been-saved-in-javascript-t264.html
-
-function isDocumentNew(doc){
-	// assumes doc is the activeDocument
-	cTID = function(s) { return app.charIDToTypeID(s); }
-	var ref = new ActionReference();
-	ref.putEnumerated( cTID("Dcmn"),
-	cTID("Ordn"),
-	cTID("Trgt") ); //activeDoc
-	var desc = executeActionGet(ref);
-	var rc = true;
-		if (desc.hasKey(cTID("FilR"))) { //FileReference
-		var path = desc.getPath(cTID("FilR"));
-		
-		if (path) {
-			rc = (path.absoluteURI.length == 0);
-		}
-	}
-	return rc;
-};
-
-
-function resizeDoc(document, scale) {
-
-	var calcWidth  = activeLayer.bounds[2] - activeLayer.bounds[0], // Get layer's width
-	calcHeight = activeLayer.bounds[3] - activeLayer.bounds[1]; // Get layer's height
-	// newWidth, newHeight; 
-
-	if(scale === 'xxhdpi') {
-		newHeight = calcHeight;
-		newWidth = calcWidth;
-	} else if(scale === 'xhdpi') {
-		newHeight = Math.floor(calcHeight / 3 * 2);
-		newWidth = Math.floor(calcWidth / 3 * 2);
-	} else if(scale === 'hdpi') {
-		newHeight = Math.floor(calcHeight / 2);
-		newWidth = Math.floor(calcWidth / 2);
-	} else if(scale === 'mdpi') {
-		newHeight = Math.floor(calcHeight / 3);
-		newWidth = Math.floor(calcWidth / 3);
-	} else if(scale === 'ldpi') {
-		newHeight = Math.floor(calcHeight / 3 * .75);
-		newWidth = Math.floor(calcWidth / 3 * .75);
-	}
-
-	// Resize temp document using Bicubic interpolation
-	resizeLayer(newWidth);
-
-	// Merge all layers inside the temp document
-	activeLayer2.merge();
-}
-
-
-// document.resizeImage doesn't seem to support scalestyles so we're using this workaround from http://ps-scripts.com/bb/viewtopic.php?p=14359
-function resizeLayer(newWidth) {
-	var idImgS = charIDToTypeID( "ImgS" );
-	var desc2 = new ActionDescriptor();
-	var idWdth = charIDToTypeID( "Wdth" );
-	var idPxl = charIDToTypeID( "#Pxl" );
-	desc2.putUnitDouble( idWdth, idPxl, newWidth);
-	var idscaleStyles = stringIDToTypeID( "scaleStyles" );
-	desc2.putBoolean( idscaleStyles, true );
-	var idCnsP = charIDToTypeID( "CnsP" );
-	desc2.putBoolean( idCnsP, true );
-	var idIntr = charIDToTypeID( "Intr" );
-	var idIntp = charIDToTypeID( "Intp" );
-	var idBcbc = charIDToTypeID( "Bcbc" );
-	desc2.putEnumerated( idIntr, idIntp, idBcbc );
-	executeAction( idImgS, desc2, DialogModes.NO );
-}
-
-function dupToNewFile() {	
-	var fileName = activeLayer.name.replace(/\.[^\.]+$/, ''), 
-		calcWidth  = Math.ceil(activeLayer.bounds[2] - activeLayer.bounds[0]),
-		calcHeight = Math.ceil(activeLayer.bounds[3] - activeLayer.bounds[1]),
-		docResolution = docRef.resolution,
-		document = app.documents.add(calcWidth, calcHeight, docResolution, fileName, NewDocumentMode.RGB,
-		DocumentFill.TRANSPARENT);
-
-	app.activeDocument = docRef;
-
-	// Duplicated selection to a temp document
-	activeLayer.duplicate(document, ElementPlacement.INSIDE);
-
-	// Set focus on temp document
-	app.activeDocument = document;
-
-	// Assign a variable to the layer we pasted inside the temp document
-	activeLayer2 = document.activeLayer;
-
-	// Center the layer
-	activeLayer2.translate(-activeLayer2.bounds[0],-activeLayer2.bounds[1]);
-}
-
-function saveFunc(dpi) {
-	dupToNewFile();
-	var docRef2 = app.activeDocument;
-	resizeDoc(docRef2, dpi);
-
-	var Name = docRef2.name.replace(/\.[^\.]+$/, ''), 
-		Ext = decodeURI(docRef2.name).replace(/^.*\./,''), 
-		Path = docRef.path,
-		folder = Folder(Path + '/' + docName + '-assets/' + 'drawable-' + dpi);
-		
-	if(!folder.exists) {
-		folder.create();
-	}
-
-	var saveFile = File(folder + "/" + Name + ".png");
-
-	var sfwOptions = new ExportOptionsSaveForWeb(); 
-		sfwOptions.format = SaveDocumentType.PNG; 
-		sfwOptions.includeProfile = false; 
-		sfwOptions.interlaced = 0; 
-		sfwOptions.optimized = true; 
-		sfwOptions.quality = 100;
-		sfwOptions.PNG8 = false;
-
-	// Export the layer as a PNG
-	activeDocument.exportDocument(saveFile, ExportType.SAVEFORWEB, sfwOptions);
-
-	// Close the document without saving
-	activeDocument.close(SaveOptions.DONOTSAVECHANGES);
-}
+main();
