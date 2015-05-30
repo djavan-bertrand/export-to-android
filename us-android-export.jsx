@@ -134,6 +134,7 @@ var docRef,
 		}
 		
 		okButton.onClick = function() {
+			dialog.hide();
 			saveAllResources();
 		}
 		
@@ -150,23 +151,24 @@ var docRef,
 		
 		// set ruler units to pixel to ensure scaling works as expected
 		app.preferences.rulerUnits = Units.PIXELS;
-		
-		// if the document is save, save the resource
-		if(!isDocumentUnsaved()) {
-			saveFile(folderPath+'/drawable-xxxhdpi', mdpiWidth * 4, mdpiHeight * 4);
-			saveFile(folderPath+'/drawable-xxhdpi', mdpiWidth * 3, mdpiHeight * 3);
-			saveFile(folderPath+'/drawable-xhdpi', mdpiWidth * 2, mdpiHeight * 2);
-			saveFile(folderPath+'/drawable-hdpi', mdpiWidth * 1.5, mdpiHeight * 1.5);
-			saveFile(folderPath+'/drawable-mdpi', mdpiWidth, mdpiHeight);
 			
-			// confirm to the user that operation went well and remind him the paths
-			if (isPng) {
-				extension = ".png";
-			} else {
-				extension = ".jpg";
-			}
-			alert("Your files have been save in " + folderPath + " with name " + fileName + extension);
+		if (getSelectedLayersCount() == 0) {
+			selectAllLayers();
 		}
+		
+		saveFile(folderPath+'/drawable-xxxhdpi', mdpiWidth * 4, mdpiHeight * 4);
+		saveFile(folderPath+'/drawable-xxhdpi', mdpiWidth * 3, mdpiHeight * 3);
+		saveFile(folderPath+'/drawable-xhdpi', mdpiWidth * 2, mdpiHeight * 2);
+		saveFile(folderPath+'/drawable-hdpi', mdpiWidth * 1.5, mdpiHeight * 1.5);
+		saveFile(folderPath+'/drawable-mdpi', mdpiWidth, mdpiHeight);
+		
+		// confirm to the user that operation went well and remind him the paths
+		if (isPng) {
+			extension = ".png";
+		} else {
+			extension = ".jpg";
+		}
+		alert("Your files have been save in " + folderPath + " with name " + fileName + extension);
 
 		// restore old ruler unit settings
 		app.preferences.rulerUnits = ru;	
@@ -278,6 +280,59 @@ var docRef,
 	}
 	
 	/**
+	* Return the number of selected layers
+	* source : http://www.ps-scripts.com/bb/viewtopic.php?t=4724
+	*/
+	function getSelectedLayersCount(){
+		var res = new Number();
+		var ref = new ActionReference();
+		ref.putEnumerated( charIDToTypeID("Dcmn"), charIDToTypeID("Ordn"), charIDToTypeID("Trgt") );
+		var desc = executeActionGet(ref);
+		if( desc.hasKey( stringIDToTypeID( 'targetLayers' ) ) ){
+			desc = desc.getList( stringIDToTypeID( 'targetLayers' ));
+			res = desc.count 
+		}else{
+			var vis = app.activeDocument.activeLayer.visible;
+			if(vis == true) app.activeDocument.activeLayer.visible = false;
+			checkVisibility();
+			if(app.activeDocument.activeLayer.visible == true){
+				res =1;
+			}else{
+				res = 0;
+			}
+			app.activeDocument.activeLayer.visible = vis;
+		}
+		return res;
+	}
+	
+	function checkVisibility(){
+		var desc = new ActionDescriptor();
+		var list = new ActionList();
+		var ref = new ActionReference();
+		ref.putEnumerated( charIDToTypeID('Lyr '), charIDToTypeID('Ordn'), charIDToTypeID('Trgt') );
+		list.putReference( ref );
+		desc.putList( charIDToTypeID('null'), list );
+		executeAction( charIDToTypeID('Shw '), desc, DialogModes.NO );
+	}
+
+	/**
+	* Select all layers of the document
+	* source : Flatten All Layer Effects.jsx in the default scripts
+	*/
+	function selectAllLayers() {
+		var idselectAllLayers = stringIDToTypeID( "selectAllLayers" );
+		var desc252 = new ActionDescriptor();
+		var idnull = charIDToTypeID( "null" );
+		var ref174 = new ActionReference();
+		var idLyr = charIDToTypeID( "Lyr " );
+		var idOrdn = charIDToTypeID( "Ordn" );
+		var idTrgt = charIDToTypeID( "Trgt" );
+		ref174.putEnumerated( idLyr, idOrdn, idTrgt );
+		desc252.putReference( idnull, ref174 );
+		executeAction( idselectAllLayers, desc252, DialogModes.NO ); 
+	} 
+	
+	/**
 	* Entry function
 	* Init vars and display the settings dialog
 	*/
@@ -288,17 +343,25 @@ var docRef,
 		// set ruler units to pixel to ensure scaling works as expected
 		app.preferences.rulerUnits = Units.PIXELS;
 		
-		// init vars
-		docRef = app.activeDocument;
-		activeLayer = docRef.activeLayer;
-		mdpiWidth = docRef.width.value;
-		mdpiHeight = docRef.width.value;
-		folderPath = docRef.path;
-		fileName = docRef.name.replace(/\.[^\.]+$/, '');
-		isPng = true;
-		
-		var settings = createSettings();
-		settings.show();
+		if (app != null && app.activeDocument != null)
+		{
+			// init vars
+			docRef = app.activeDocument;
+			activeLayer = docRef.activeLayer;
+			mdpiWidth = docRef.width.value;
+			mdpiHeight = docRef.width.value;
+			folderPath = docRef.path;
+			fileName = docRef.name.replace(/\.[^\.]+$/, '');
+			isPng = true;
+			
+			// if the document is save, save the resource
+			if(!isDocumentUnsaved()) {
+				var settings = createSettings();
+				settings.show();
+			} else {
+				alert ("Please save your document before using this script");
+			}
+		}
 		
 		// restore old ruler unit settings
 		app.preferences.rulerUnits = ru;
